@@ -34,6 +34,7 @@ function App() {
 
     socket.on('playerJoined', (data) => {
       setGameState(data);
+      if (view === 'landing') setView('lobby');
     });
 
     socket.on('gameStarted', (data) => {
@@ -100,7 +101,6 @@ function App() {
   const handleJoinRoom = () => {
     if (!username || !roomId) return setError('Please enter username and Room ID');
     socket.emit('joinRoom', { roomId, username });
-    setView('lobby');
   };
 
   const handleStartGame = () => {
@@ -164,6 +164,7 @@ function App() {
   }
 
   if (view === 'lobby') {
+    if (!gameState) return <div className="landing-container"><h1 className="title">Loading Lobby...</h1></div>;
     const isHost = gameState.players[0].id === socket.id;
     return (
       <div className="landing-container">
