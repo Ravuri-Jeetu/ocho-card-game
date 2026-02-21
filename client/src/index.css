@@ -178,13 +178,20 @@ body {
 
 .hand-bottom {
   position: absolute;
-  bottom: 40px;
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
+  width: 100vw;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  pointer-events: none;
 }
 
 .hand-bottom .card {
-  margin-left: -30px;
+  margin-left: -50px;
+  pointer-events: auto;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .hand-bottom .card:first-child {
@@ -192,8 +199,9 @@ body {
 }
 
 .hand-bottom .card:hover {
-  transform: translateY(-30px);
+  transform: translateY(-40px) scale(1.1);
   z-index: 100;
+  margin-right: 20px;
 }
 
 .opponent-hand {
