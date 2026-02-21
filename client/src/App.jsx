@@ -199,8 +199,16 @@ function App() {
     );
   }
 
+  if (!gameState || !gameState.players) {
+    return <div className="landing-container"><h1 className="title">Loading Game Data...</h1></div>;
+  }
+
   const currentPlayer = gameState.players.find(p => p.id === socket.id);
-  const isMyTurn = gameState.players[gameState.currentPlayerIndex].id === socket.id;
+  const isMyTurn = gameState.players[gameState.currentPlayerIndex]?.id === socket.id;
+
+  if (!currentPlayer) {
+    return <div className="landing-container"><h1 className="title">Waiting for player data...</h1></div>;
+  }
 
   return (
     <div className="game-board">
