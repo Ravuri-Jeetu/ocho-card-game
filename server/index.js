@@ -234,6 +234,21 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('gameUpdated', room);
     });
 
+    socket.on('sendMessage', ({ roomId, message }) => {
+        const room = rooms.get(roomId);
+        if (!room) return;
+
+        const player = room.players.find(p => p.id === socket.id);
+        if (!player) return;
+
+        io.to(roomId).emit('newMessage', {
+            username: player.username,
+            avatar: player.avatar,
+            message,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
         // Handle disconnection logic (remove player from room, etc.)

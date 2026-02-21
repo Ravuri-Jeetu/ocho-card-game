@@ -16,6 +16,9 @@ function App() {
   const [pendingCardId, setPendingCardId] = useState(null);
   const [winner, setWinner] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [showChat, setShowChat] = useState(false);
 
   const playSound = (type) => {
     const sounds = {
@@ -76,9 +79,9 @@ function App() {
       setIsConnected(false);
     });
 
-    socket.on('connect_error', (err) => {
-      console.error('Connection error:', err.message);
-      setError(`Cannot connect to server at ${SOCKET_URL}. Is it running?`);
+    socket.on('newMessage', (msg) => {
+      setMessages(prev => [...prev.slice(-49), msg]);
+      if (!showChat) playSound('draw'); // Notification sound
     });
 
     return () => {
@@ -136,13 +139,30 @@ function App() {
     playSound('draw');
   };
 
+  const sendChatMessage = (e) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+    socket.emit('sendMessage', { roomId: gameState.id, message: chatInput });
+    setChatInput('');
+  };
+
   if (view === 'landing') {
     return (
       <div className="landing-container">
-        <h1 className="title">OCHO</h1>
+        <motion.h1
+          className="title"
+          initial={{ y: -100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+        >
+          OCHO
+        </motion.h1>
         {!isConnected && <div className="connection-warning">⚠️ Connecting to server at {SOCKET_URL}...</div>}
-        <div className="input-group">
-          {error && <div style={{ color: 'var(--primary)' }}>{error}</div>}
+        <motion.div
+          className="input-group glass"
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+        >
+          {error && <div style={{ color: 'var(--primary)', marginBottom: '1rem' }}>{error}</div>}
           <input
             type="text"
             placeholder="Username"
@@ -150,7 +170,7 @@ function App() {
             onChange={(e) => setUsername(e.target.value)}
           />
           <button className="btn btn-primary" onClick={handleCreateRoom}>Create Room</button>
-          <div style={{ margin: '1rem 0' }}>OR</div>
+          <div style={{ margin: '1rem 0', textAlign: 'center', opacity: 0.6 }}>OR</div>
           <input
             type="text"
             placeholder="Room ID"
@@ -158,7 +178,7 @@ function App() {
             onChange={(e) => setRoomId(e.target.value)}
           />
           <button className="btn btn-secondary" onClick={handleJoinRoom}>Join Room</button>
-        </div>
+        </motion.div>
       </div>
     );
   }
@@ -212,49 +232,70 @@ function App() {
 
   return (
     <div className="game-board">
-      <div className="room-id-display">ROOM: {gameState.id}</div>
+      <div className="room-id-display glass" style={{ padding: '0.5rem 1rem', borderRadius: '1rem' }}>
+        ROOM: {gameState.id}
+      </div>
 
-      <div className="players-list" style={{ position: 'absolute', right: '1rem', top: '1rem' }}>
+      <div className="players-list" style={{ position: 'absolute', right: '1rem', top: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {gameState.players.map((p, i) => (
-          <div key={p.id} style={{
-            color: i === gameState.currentPlayerIndex ? 'var(--accent)' : 'white',
+          <div key={p.id} className="glass" style={{
+            padding: '1rem',
+            borderRadius: '1.5rem',
+            border: i === gameState.currentPlayerIndex ? '2px solid var(--accent)' : '1px solid var(--glass-border)',
             display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            marginBottom: '4px',
-            padding: '4px 8px',
-            borderRadius: '8px',
-            background: i === gameState.currentPlayerIndex ? 'rgba(255,255,255,0.1)' : 'transparent'
+            flexDirection: 'column',
+            gap: '0.5rem'
           }}>
-            <img src={p.avatar} alt="avatar" style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
-            <span>{p.username} ({p.hand.length})</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <img src={p.avatar} alt="avatar" style={{ width: '40px', height: '40px', borderRadius: '50%' }} />
+              <div>
+                <div style={{ fontWeight: 'bold' }}>{p.username}</div>
+                <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>{p.hand.length} cards</div>
+              </div>
+            </div>
+            {p.id !== socket.id && (
+              <div className="opponent-hand">
+                {Array.from({ length: Math.min(p.hand.length, 7) }).map((_, idx) => (
+                  <div key={idx} className="mini-card-back" />
+                ))}
+                {p.hand.length > 7 && <span style={{ fontSize: '0.8rem' }}>+{p.hand.length - 7}</span>}
+              </div>
+            )}
           </div>
         ))}
       </div>
 
       <div className="center-pile">
-        <div className="card back" onClick={drawCard} style={{ backgroundColor: '#4b4b4b' }}>
+        <motion.div
+          className="card back"
+          onClick={drawCard}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
           DRAW
-        </div>
-        {gameState.lastPlayedCard && (
-          <div className={`card ${gameState.currentColor.toLowerCase()}`}>
-            {gameState.lastPlayedCard.value}
-          </div>
-        )}
+        </motion.div>
+        <AnimatePresence mode="wait">
+          {gameState.lastPlayedCard && (
+            <motion.div
+              key={gameState.lastPlayedCard.id}
+              className={`card ${gameState.currentColor.toLowerCase()}`}
+              initial={{ scale: 0, rotate: -180, x: -200 }}
+              animate={{ scale: 1, rotate: 0, x: 0 }}
+              transition={{ type: 'spring', damping: 15 }}
+            >
+              {gameState.lastPlayedCard.value}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {showColorPicker && (
-        <div className="color-picker" style={{
-          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-          background: 'rgba(0,0,0,0.8)', padding: '2rem', borderRadius: '1rem', zIndex: 100,
-          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'
-        }}>
+        <div className="color-picker glass">
           {['Red', 'Blue', 'Green', 'Yellow'].map(color => (
             <button
               key={color}
               className={`btn card ${color.toLowerCase()}`}
               onClick={() => selectColor(color)}
-              style={{ width: '80px', height: '80px' }}
             >
               {color}
             </button>
@@ -262,7 +303,34 @@ function App() {
         </div>
       )}
 
-      <div className="controls" style={{ textAlign: 'center', marginBottom: '1rem', display: 'flex', justifyContent: 'center', gap: '1rem' }}>
+      {/* Chat UI */}
+      <div className={`chat-container glass ${showChat ? 'open' : ''}`} style={{ transform: showChat ? 'none' : 'translateY(350px)' }}>
+        <div onClick={() => setShowChat(!showChat)} style={{ padding: '0.8rem', textAlign: 'center', cursor: 'pointer', borderBottom: '1px solid var(--glass-border)', fontWeight: 'bold' }}>
+          {showChat ? '👇 Close Chat' : '💬 Open Chat'}
+        </div>
+        <div className="chat-messages">
+          {messages.map((m, i) => (
+            <div key={i} className="chat-message">
+              <img src={m.avatar} style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
+              <div className="chat-bubble">
+                <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>{m.username} • {m.timestamp}</div>
+                {m.message}
+              </div>
+            </div>
+          ))}
+        </div>
+        <form className="chat-input-area" onSubmit={sendChatMessage}>
+          <input
+            className="chat-input"
+            placeholder="Type a message..."
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+          />
+          <button type="submit" className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}>Send</button>
+        </form>
+      </div>
+
+      <div className="controls">
         {currentPlayer.hand.length === 1 && !currentPlayer.hasShoutedOcho && (
           <button className="btn btn-primary" onClick={handleShoutOcho}>OCHO!</button>
         )}
@@ -274,17 +342,24 @@ function App() {
           <motion.div
             key={card.id}
             className={`card ${card.color.toLowerCase()}`}
-            whileHover={{ y: -50, scale: 1.1 }}
+            whileHover={{ y: -60, scale: 1.1, zIndex: 100 }}
             onClick={() => isMyTurn && playCard(card.id)}
-            initial={{ opacity: 0, y: 100 }}
+            initial={{ opacity: 0, y: 100, x: idx * 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
+            transition={{ delay: idx * 0.05 }}
+            layout
           >
             {card.value}
           </motion.div>
         ))}
       </div>
-      {isMyTurn && <div style={{ textAlign: 'center', marginBottom: '1rem', fontWeight: 'bold', fontSize: '1.5rem', color: 'var(--accent)' }}>YOUR TURN!</div>}
+      {isMyTurn && <motion.div
+        initial={{ opacity: 0, scale: 0.5 }}
+        animate={{ opacity: 1, scale: 1 }}
+        style={{ position: 'fixed', bottom: '180px', left: '50%', transform: 'translateX(-50%)', fontWeight: 'bold', fontSize: '2rem', color: 'var(--accent)', textShadow: '0 0 20px rgba(0,210,255,0.5)' }}
+      >
+        YOUR TURN!
+      </motion.div>}
     </div>
   );
 }
