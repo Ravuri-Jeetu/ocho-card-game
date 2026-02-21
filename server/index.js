@@ -50,16 +50,18 @@ function shuffle(deck) {
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
-    socket.on('createRoom', ({ username }) => {
+    socket.on('createRoom', ({ username, playerId }) => {
         const roomId = Math.random().toString(36).substr(2, 6).toUpperCase();
         const roomData = {
             id: roomId,
             players: [{
                 id: socket.id,
+                playerId: playerId || socket.id,
                 username,
                 avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
                 hand: [],
-                isHost: true
+                isHost: true,
+                hasShoutedOcho: false
             }],
             gameStarted: false,
             deck: [],
@@ -74,21 +76,35 @@ io.on('connection', (socket) => {
         socket.emit('roomCreated', roomData);
     });
 
-    socket.on('joinRoom', ({ roomId, username }) => {
-        const room = rooms.get(roomId);
-        if (room && !room.gameStarted) {
-            room.players.push({
-                id: socket.id,
-                username,
-                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-                hand: [],
-                isHost: false
-            });
-            socket.join(roomId);
-            io.to(roomId).emit('playerJoined', room);
-        } else {
-            socket.emit('error', 'Room not found or game already started');
+    socket.on('joinRoom', ({ roomId, username, playerId }) => {
+        const room = rooms.get(roomId?.toUpperCase());
+        if (!room) return socket.emit('error', 'Room not found');
+
+        // Reconnection logic
+        const existingPlayer = room.players.find(p => p.playerId === playerId);
+        if (existingPlayer) {
+            existingPlayer.id = socket.id;
+            socket.join(room.id);
+            socket.emit('playerJoined', room);
+            io.to(room.id).emit('gameUpdated', room);
+            return;
         }
+
+        if (room.gameStarted) return socket.emit('error', 'Game already started');
+        if (room.players.length >= 8) return socket.emit('error', 'Room full');
+
+        const newPlayer = {
+            id: socket.id,
+            playerId: playerId || socket.id,
+            username,
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+            hand: [],
+            isHost: false,
+            hasShoutedOcho: false
+        };
+        room.players.push(newPlayer);
+        socket.join(room.id);
+        io.to(room.id).emit('playerJoined', room);
     });
 
     socket.on('startGame', (roomId) => {

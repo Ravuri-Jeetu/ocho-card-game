@@ -19,6 +19,14 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [showChat, setShowChat] = useState(false);
+  const [playerId] = useState(() => {
+    let id = localStorage.getItem('ocho_player_id');
+    if (!id) {
+      id = 'p_' + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('ocho_player_id', id);
+    }
+    return id;
+  });
 
   const playSound = (type) => {
     const sounds = {
@@ -33,11 +41,18 @@ function App() {
     socket.on('roomCreated', (data) => {
       setGameState(data);
       setView('lobby');
+      sessionStorage.setItem('ocho_room_id', data.id);
+      sessionStorage.setItem('ocho_username', username);
     });
 
     socket.on('playerJoined', (data) => {
       setGameState(data);
-      if (view === 'landing') setView('lobby');
+      if (data.gameStarted) setView('game');
+      else if (view === 'landing') setView('lobby');
+
+      // Persist session if we're in a room
+      sessionStorage.setItem('ocho_room_id', data.id);
+      sessionStorage.setItem('ocho_username', username || data.players.find(p => p.playerId === playerId)?.username || '');
     });
 
     socket.on('gameStarted', (data) => {
@@ -72,6 +87,13 @@ function App() {
     socket.on('connect', () => {
       console.log('Connected to server');
       setIsConnected(true);
+
+      // Auto-reconnect if we have session data
+      const savedRoomId = sessionStorage.getItem('ocho_room_id');
+      const savedUsername = sessionStorage.getItem('ocho_username');
+      if (savedRoomId && savedUsername) {
+        socket.emit('joinRoom', { roomId: savedRoomId, username: savedUsername, playerId });
+      }
     });
 
     socket.on('disconnect', () => {
@@ -98,12 +120,12 @@ function App() {
 
   const handleCreateRoom = () => {
     if (!username) return setError('Please enter a username');
-    socket.emit('createRoom', { username });
+    socket.emit('createRoom', { username, playerId });
   };
 
   const handleJoinRoom = () => {
     if (!username || !roomId) return setError('Please enter username and Room ID');
-    socket.emit('joinRoom', { roomId, username });
+    socket.emit('joinRoom', { roomId, username, playerId });
   };
 
   const handleStartGame = () => {
@@ -233,36 +255,62 @@ function App() {
     return <div className="landing-container"><h1 className="title">Waiting for player data...</h1></div>;
   }
 
+  const getPositionClass = (index, total) => {
+    const myIndex = gameState.players.findIndex(p => p.id === socket.id);
+    const relativeIndex = (index - myIndex + total) % total;
+
+    // Position mappings for 2-4 players
+    if (total === 2) return relativeIndex === 0 ? 'bottom' : 'top';
+    if (total === 3) {
+      if (relativeIndex === 0) return 'bottom';
+      if (relativeIndex === 1) return 'left';
+      return 'right';
+    }
+    const positions = ['bottom', 'left', 'top', 'right'];
+    return positions[relativeIndex] || 'top';
+  };
+
   return (
     <div className="game-board">
-      {/* Top Bar: Players */}
-      <div className="top-bar glass">
-        <div style={{ fontSize: '0.8rem', opacity: 0.6, fontWeight: 'bold' }}>{gameState.id}</div>
-        <div className="players-scroll">
-          {gameState.players.map((p, i) => (
-            <div key={p.id} className="player-card glass" style={{
-              border: i === gameState.currentPlayerIndex ? '2px solid var(--accent)' : '1px solid var(--glass-border)',
-              boxShadow: i === gameState.currentPlayerIndex ? '0 0 10px rgba(0,210,255,0.3)' : 'none'
-            }}>
-              <img src={p.avatar} alt="avatar" style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
-              <span style={{ fontSize: '0.8rem', fontWeight: i === gameState.currentPlayerIndex ? '900' : '400' }}>
-                {p.username} ({p.hand.length})
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <div className="turn-arrow"></div>
 
-      <div className="center-view">
+      {/* Players around the table */}
+      {gameState.players.map((p, i) => {
+        const isCurrent = i === gameState.currentPlayerIndex;
+        const posClass = getPositionClass(i, gameState.players.length);
+        const isMe = p.id === socket.id;
+
+        return (
+          <div key={p.id} className={`player-slot ${posClass}`}>
+            <div className={`avatar-box glass ${isCurrent ? 'active' : ''}`}>
+              <img src={p.avatar} alt="avatar" className="avatar-image" />
+            </div>
+            <div className="player-name">{p.username} {isMe && '(You)'}</div>
+
+            {!isMe && (
+              <div className="opponent-hand">
+                {Array.from({ length: Math.min(p.hand.length, 5) }).map((_, idx) => (
+                  <div key={idx} className="mini-card-back" />
+                ))}
+                {p.hand.length > 5 && <span style={{ fontSize: '0.6rem' }}>+{p.hand.length - 5}</span>}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Table Center */}
+      <div className="table-center">
         <div className="center-pile">
           <motion.div
             className="card back"
             onClick={drawCard}
-            whileHover={{ scale: 1.05 }}
+            whileHover={{ scale: 1.05, y: -5 }}
             whileTap={{ scale: 0.95 }}
           >
-            DRAW
+            <div style={{ transform: 'rotate(-10deg)', fontSize: '0.8rem' }}>OCHO</div>
           </motion.div>
+
           <AnimatePresence mode="wait">
             {gameState.lastPlayedCard && (
               <motion.div
@@ -277,18 +325,37 @@ function App() {
             )}
           </AnimatePresence>
         </div>
-
-        {isMyTurn && <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{ marginTop: '2rem', fontWeight: '900', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '2px' }}
-        >
-          Your Turn!
-        </motion.div>}
       </div>
 
+      {/* Your Hand at the Bottom */}
+      <div className="hand hand-bottom">
+        {currentPlayer.hand.map((card, idx) => (
+          <motion.div
+            key={card.id}
+            className={`card ${card.color.toLowerCase()}`}
+            whileHover={{ y: -30, scale: 1.1, zIndex: 100 }}
+            onClick={() => isMyTurn && playCard(card.id)}
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.05 }}
+            layout
+          >
+            {card.value}
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Controls */}
+      <div style={{ position: 'fixed', bottom: '10px', right: '10px', display: 'flex', gap: '10px', zIndex: 100 }}>
+        {currentPlayer.hand.length === 1 && !currentPlayer.hasShoutedOcho && (
+          <button className="btn btn-primary" onClick={handleShoutOcho}>OCHO!</button>
+        )}
+        <button className="btn btn-secondary" onClick={handleChallenge}>CHALLENGE</button>
+      </div>
+
+      {/* Color Picker Overlay */}
       {showColorPicker && (
-        <div className="color-picker glass" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', padding: '1.5rem', borderRadius: '1.5rem', zIndex: 300, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div className="color-picker glass" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', padding: '1.5rem', borderRadius: '1.5rem', zIndex: 3000, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'rgba(0,0,0,0.8)' }}>
           {['Red', 'Blue', 'Green', 'Yellow'].map(color => (
             <button
               key={color}
@@ -303,72 +370,38 @@ function App() {
       )}
 
       {/* Chat Drawer */}
-      <div className={`chat-drawer glass`} style={{ transform: showChat ? 'translateY(0)' : 'translateY(calc(100% - 45px))' }}>
-        <div
-          onClick={() => setShowChat(!showChat)}
-          style={{ padding: '0.8rem', textAlign: 'center', cursor: 'pointer', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}
-        >
-          <span style={{ fontSize: '1.2rem' }}>💬</span>
-          <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{showChat ? 'Close Chat' : 'Open Chat'}</span>
+      <div className={`chat-drawer glass`} style={{ transform: showChat ? 'translateY(0)' : 'translateY(calc(100% - 35px))' }}>
+        <div onClick={() => setShowChat(!showChat)} style={{ padding: '8px', textAlign: 'center', cursor: 'pointer', fontWeight: 'bold' }}>
+          {showChat ? '▼ Chat' : '▲ Chat'}
         </div>
-
         <div className="messages">
           {messages.map((m, i) => (
-            <div key={i} className="chat-message" style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-              <img src={m.avatar} style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
-              <div className="chat-bubble glass">
-                <span style={{ fontSize: '0.7rem', opacity: 0.6, display: 'block' }}>{m.username}</span>
-                {m.message}
-              </div>
-            </div>
+            <div key={i}><span style={{ color: '#fbc531' }}>{m.username}:</span> {m.message}</div>
           ))}
         </div>
-
-        {/* Quick Chat Buttons */}
         <div className="quick-chat">
           {quickMessages.map(msg => (
-            <button key={msg} className="quick-btn" onClick={() => sendChatMessage(null, msg)}>
-              {msg}
-            </button>
+            <button key={msg} className="quick-btn" onClick={() => sendChatMessage(null, msg)}>{msg}</button>
           ))}
         </div>
-
-        <form className="chat-input-area" onSubmit={(e) => sendChatMessage(e)}>
+        <form className="chat-input-area" onSubmit={(e) => sendChatMessage(e)} style={{ padding: '5px' }}>
           <input
             className="chat-input"
             placeholder="Type..."
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
+            style={{ width: '100%', padding: '5px', borderRadius: '5px', border: 'none', background: 'rgba(255,255,255,0.1)', color: 'white' }}
           />
-          <button type="submit" className="btn btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>Send</button>
         </form>
       </div>
 
-      <div className="player-hand">
-        <div style={{ display: 'flex', position: 'relative', width: '100%', justifyContent: 'center' }}>
-          {currentPlayer.hand.map((card, idx) => (
-            <motion.div
-              key={card.id}
-              className={`card ${card.color.toLowerCase()}`}
-              whileHover={{ y: -60, scale: 1.1, zIndex: 100 }}
-              onClick={() => isMyTurn && playCard(card.id)}
-              initial={{ opacity: 0, y: 100 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.05 }}
-              layout
-            >
-              {card.value}
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ position: 'fixed', bottom: '10px', right: '10px', display: 'flex', gap: '0.5rem', zIndex: 100 }}>
-        {currentPlayer.hand.length === 1 && !currentPlayer.hasShoutedOcho && (
-          <button className="btn btn-primary" onClick={handleShoutOcho} style={{ padding: '0.5rem 1rem' }}>OCHO!</button>
-        )}
-        <button className="btn btn-secondary" onClick={handleChallenge} style={{ padding: '0.5rem 1rem', fontSize: '0.7rem' }}>CHALLENGE</button>
-      </div>
+      {isMyTurn && <motion.div
+        initial={{ opacity: 0, scale: 0.5 }}
+        animate={{ opacity: 1, scale: 1 }}
+        style={{ position: 'fixed', top: '100px', left: '50%', transform: 'translateX(-50%)', fontWeight: 'bold', fontSize: '2rem', color: '#fbc531', textShadow: '0 0 20px rgba(251,197,49,0.5)', pointerEvents: 'none' }}
+      >
+        YOUR TURN!
+      </motion.div>}
     </div>
   );
 }
