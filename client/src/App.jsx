@@ -134,6 +134,11 @@ function App() {
     socket.emit('challengeOcho', gameState.id);
   };
 
+  const drawCard = () => {
+    socket.emit('drawCard', gameState.id);
+    playSound('draw');
+  };
+
   const quickMessages = ["Hello! 👋", "Good luck! 🍀", "Nice move! 🔥", "Sorry! 😅", "OCHO! 🃏", "Hurry up! ⏳"];
 
   const sendChatMessage = (e, msg) => {
