@@ -15,6 +15,7 @@ function App() {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [pendingCardId, setPendingCardId] = useState(null);
   const [winner, setWinner] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   const playSound = (type) => {
     const sounds = {
@@ -64,7 +65,25 @@ function App() {
       setGameState(room);
     });
 
+    socket.on('connect', () => {
+      console.log('Connected to server');
+      setIsConnected(true);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from server');
+      setIsConnected(false);
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Connection error:', err.message);
+      setError(`Cannot connect to server at ${SOCKET_URL}. Is it running?`);
+    });
+
     return () => {
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('connect_error');
       socket.off('roomCreated');
       socket.off('playerJoined');
       socket.off('gameStarted');
@@ -121,6 +140,7 @@ function App() {
     return (
       <div className="landing-container">
         <h1 className="title">OCHO</h1>
+        {!isConnected && <div className="connection-warning">⚠️ Connecting to server at {SOCKET_URL}...</div>}
         <div className="input-group">
           {error && <div style={{ color: 'var(--primary)' }}>{error}</div>}
           <input
