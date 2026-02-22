@@ -205,7 +205,7 @@ input:focus {
 
 /* Fixed Bottom Slot - Move Up significantly to avoid overlapping cards */
 .player-slot.bottom {
-  bottom: 180px;
+  bottom: 240px;
   left: 50%;
   transform: translateX(-50%);
 }
@@ -262,7 +262,7 @@ input:focus {
 
 .hand-bottom {
   position: absolute;
-  bottom: 20px;
+  bottom: 50px;
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
@@ -271,13 +271,14 @@ input:focus {
   justify-content: center;
   align-items: flex-end;
   pointer-events: none;
-  z-index: 100;
+  z-index: 200;
 }
 
 .hand-bottom .card {
-  margin-left: -25px;
+  margin-left: -30px;
   /* Less overlap for better side-by-side look */
   pointer-events: auto;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
 }
 
 .hand-bottom .card:first-child {
