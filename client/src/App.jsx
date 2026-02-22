@@ -370,13 +370,13 @@ function App() {
       )}
 
       {/* Chat Drawer */}
-      <div className={`chat-drawer glass`} style={{ transform: showChat ? 'translateY(0)' : 'translateY(calc(100% - 35px))' }}>
-        <div onClick={() => setShowChat(!showChat)} style={{ padding: '8px', textAlign: 'center', cursor: 'pointer', fontWeight: 'bold' }}>
-          {showChat ? '▼ Chat' : '▲ Chat'}
+      <div className="chat-drawer" style={{ transform: showChat ? 'translateY(0)' : 'translateY(100%)' }}>
+        <div className="chat-toggle" onClick={() => setShowChat(!showChat)}>
+          {showChat ? '▼ CLOSE CHAT' : '▲ OPEN CHAT'}
         </div>
         <div className="messages">
           {messages.map((m, i) => (
-            <div key={i}><span style={{ color: '#fbc531' }}>{m.username}:</span> {m.message}</div>
+            <div key={i}><span style={{ color: '#fbc531', fontWeight: 'bold' }}>{m.username}:</span> {m.message}</div>
           ))}
         </div>
         <div className="quick-chat">
@@ -384,23 +384,23 @@ function App() {
             <button key={msg} className="quick-btn" onClick={() => sendChatMessage(null, msg)}>{msg}</button>
           ))}
         </div>
-        <form className="chat-input-area" onSubmit={(e) => sendChatMessage(e)} style={{ padding: '5px' }}>
+        <form className="chat-input-area" onSubmit={(e) => sendChatMessage(e)} style={{ padding: '10px' }}>
           <input
             className="chat-input"
-            placeholder="Type..."
+            placeholder="Type a message..."
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
-            style={{ width: '100%', padding: '5px', borderRadius: '5px', border: 'none', background: 'rgba(255,255,255,0.1)', color: 'white' }}
+            style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.5)', color: 'white' }}
           />
         </form>
       </div>
 
       {isMyTurn && <motion.div
-        initial={{ opacity: 0, scale: 0.5 }}
-        animate={{ opacity: 1, scale: 1 }}
-        style={{ position: 'fixed', top: '100px', left: '50%', transform: 'translateX(-50%)', fontWeight: 'bold', fontSize: '2rem', color: '#fbc531', textShadow: '0 0 20px rgba(251,197,49,0.5)', pointerEvents: 'none' }}
+        initial={{ opacity: 0, scale: 0.5, y: -20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        style={{ position: 'fixed', top: '15%', left: '50%', transform: 'translateX(-50%)', fontWeight: '900', fontSize: 'clamp(1.5rem, 5vw, 3rem)', color: '#fbc531', textShadow: '0 0 20px rgba(251,197,49,0.5)', pointerEvents: 'none', zIndex: 1000 }}
       >
-        YOUR TURN!
+        IT'S YOUR TURN!
       </motion.div>}
     </div>
   );
