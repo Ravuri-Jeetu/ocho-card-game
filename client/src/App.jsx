@@ -396,11 +396,20 @@ function App() {
       </div>
 
       {isMyTurn && <motion.div
-        initial={{ opacity: 0, scale: 0.5, y: -20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        style={{ position: 'fixed', top: '15%', left: '50%', transform: 'translateX(-50%)', fontWeight: '900', fontSize: 'clamp(1.5rem, 5vw, 3rem)', color: '#fbc531', textShadow: '0 0 20px rgba(251,197,49,0.5)', pointerEvents: 'none', zIndex: 1000 }}
+        initial={{ opacity: 0, x: 50 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="turn-notice"
+        style={{
+          fontWeight: '900',
+          fontSize: 'clamp(2rem, 8vw, 4rem)',
+          color: '#fbc531',
+          textShadow: '0 0 30px rgba(251,197,49,0.8)',
+          writingMode: 'vertical-rl',
+          textOrientation: 'upright',
+          letterSpacing: '10px'
+        }}
       >
-        IT'S YOUR TURN!
+        YOUR TURN!
       </motion.div>}
     </div>
   );
